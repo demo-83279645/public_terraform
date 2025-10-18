@@ -1,0 +1,8 @@
+#.gitignoreファイル記載項目
+variables.tf
+*.tfstate
+*.zip
+.terraform/
+.terraform.lock.hcl
+geopandas_layer/
+src/
