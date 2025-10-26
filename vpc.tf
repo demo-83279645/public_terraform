@@ -50,3 +50,33 @@ resource "aws_route_table_association" "public" {
   subnet_id      = aws_subnet.public[count.index].id
   route_table_id = aws_route_table.public.id
 }
+
+# Private Subnets
+resource "aws_subnet" "private" {
+  count             = length(var.private_subnet_cidrs)
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = var.private_subnet_cidrs[count.index]
+  # プライベートサブネットなので map_public_ip_on_launch はデフォルト(false)
+  availability_zone = data.aws_availability_zones.available.names[count.index] # AZのリストを参照
+  tags = {
+    Name = "${var.app_name}-private-subnet-${count.index + 1}"
+  }
+}
+
+# Private Route Table (単一)
+# 全てのプライベートサブネットで使用するルートテーブルを1つだけ作成します。
+resource "aws_route_table" "private" {
+  vpc_id = aws_vpc.main.id
+  # インターネットへのルート (0.0.0.0/0) は追加しません
+  tags = {
+    Name = "${var.app_name}-private-rt"
+  }
+}
+
+# Associate Private Route Table with ALL Private Subnets
+# 全てのプライベートサブネットに、単一のプライベートルートテーブルを関連付けます。
+resource "aws_route_table_association" "private" {
+  count          = length(var.private_subnet_cidrs)
+  subnet_id      = aws_subnet.private[count.index].id
+  route_table_id = aws_route_table.private.id 
+}

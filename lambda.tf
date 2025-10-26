@@ -48,37 +48,36 @@ data "archive_file" "lambda_zip" {
   output_path = "lambda_package.zip"
 }
 
-resource "aws_lambda_function" "shadow_generator" {
-
-  function_name    = "ShadowGeneratorFunction"
-  filename         = data.archive_file.lambda_zip.output_path
-  source_code_hash = data.archive_file.lambda_zip.output_base64sha256
-  handler          = "main.main" # main.py の main関数
-  #runtime          = "python3.12"
-  runtime          = "python3.9"
-  role             = aws_iam_role.lambda_exec_role.arn
-  
-  # 高負荷処理のためメモリとタイムアウトを増加
-  memory_size = 3072 # 3GB推奨
-  timeout     = 900  # 15分 (最大値)
-
-  # GeoLambda Layer のARNを直接指定
-  layers = [
-    aws_lambda_layer_version.custom_geopandas_layer.arn,
-  ]
-  # GeoLambdaが要求する環境変数を設定
-  environment {
-    variables = {
-      # S3バケットは東京リージョンのものを渡す (Step Functionsから渡される想定)
-      OUTPUT_BUCKET = aws_s3_bucket.output_bucket.bucket 
-#      INPUT_BUCKET  = aws_s3_bucket.input_bucket.bucket
-      
-      # GeoLambda Layerの必須設定
-      GDAL_DATA     = "/opt/share/gdal"
-      PROJ_LIB      = "/opt/share/proj" # GeoLambda 2.0.0+ 向け
-          }
-#      INPUT_KEY     = "${var.app_name}-input_key_name"
-
-  }
-}
-  
+#resource "aws_lambda_function" "shadow_generator" {
+#
+#  function_name    = "ShadowGeneratorFunction"
+#  filename         = data.archive_file.lambda_zip.output_path
+#  source_code_hash = data.archive_file.lambda_zip.output_base64sha256
+#  handler          = "main.main" # main.py の main関数
+#  runtime          = "python3.12"
+##  runtime          = "python3.6"
+#  role             = aws_iam_role.lambda_exec_role.arn
+#  
+#  # 高負荷処理のためメモリとタイムアウトを増加
+#  memory_size = 3072 # 3GB推奨
+#  timeout     = 900  # 15分 (最大値)
+#
+#  # GeoLambda Layer のARNを直接指定
+#  layers = [
+#    aws_lambda_layer_version.custom_geopandas_layer.arn,
+#  ]
+#  # GeoLambdaが要求する環境変数を設定
+#  environment {
+#    variables = {
+#      # S3バケットは東京リージョンのものを渡す (Step Functionsから渡される想定)
+#      OUTPUT_BUCKET = aws_s3_bucket.output_bucket.bucket 
+##      INPUT_BUCKET  = aws_s3_bucket.input_bucket.bucket
+#      
+#      # GeoLambda Layerの必須設定
+#      GDAL_DATA     = "/opt/share/gdal"
+#      PROJ_LIB      = "/opt/share/proj" # GeoLambda 2.0.0+ 向け
+#          }
+##      INPUT_KEY     = "${var.app_name}-input_key_name"
+#
+#  }
+#}

@@ -1,6 +1,7 @@
 #.gitignoreファイル記載項目
 variables.tf
 *.tfstate
+*.tfstate.backup
 *.zip
 .terraform/
 .terraform.lock.hcl

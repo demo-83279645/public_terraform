@@ -58,7 +58,8 @@ resource "aws_ecs_task_definition" "app_task" {
       environment = [
         {
           name  = "SHADOW_DATA_BUCKET_NAME"
-          value = aws_s3_bucket.shadow_data_bucket.bucket
+#          value = aws_s3_bucket.shadow_data_bucket.bucket
+          value = aws_s3_bucket.input_bucket.bucket
         }
       ]
       secrets = [

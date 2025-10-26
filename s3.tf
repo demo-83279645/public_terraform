@@ -1,24 +1,6 @@
-# S3 Bucket for shadow data (GeoJSON)
-resource "aws_s3_bucket" "shadow_data_bucket" {
-  bucket = "${var.app_name}-shadow-data"
-}
 # ----------------------------------------------------------------------
 # 1. S3バケット (入力・出力)
 # ----------------------------------------------------------------------
-resource "aws_s3_bucket" "input_bucket" {
-  bucket = "${var.app_name}-shadow-data-input"
-}
-
-resource "aws_s3_bucket" "output_bucket" {
-  bucket = "${var.app_name}-shadow-data-output"
-}
-
-#Lambda Layer用S3バケット
-resource "aws_s3_bucket" "lambda_layer_bucket" {
-  bucket = "${var.app_name}-lambda-layers"
-}
-
-
 # S3バケットへの読み取り権限を定義するIAMポリシーを作成
 resource "aws_iam_policy" "s3_read_access_policy" {
   name        = "${var.app_name}-s3-read-access-policy"
@@ -33,8 +15,8 @@ resource "aws_iam_policy" "s3_read_access_policy" {
           "s3:ListBucket"
         ]
         Resource = [
-          aws_s3_bucket.shadow_data_bucket.arn,
-          "${aws_s3_bucket.shadow_data_bucket.arn}/*"
+          aws_s3_bucket.input_bucket.arn,
+          "${aws_s3_bucket.input_bucket.arn}/*"
         ]
       }
     ]
@@ -47,11 +29,48 @@ resource "aws_iam_role_policy_attachment" "ecs_task_s3_read_policy_attachment" {
   policy_arn = aws_iam_policy.s3_read_access_policy.arn
 }
 
-# Layerのzipファイルをアップロードすることを前提とする
-resource "aws_s3_object" "geopandas_layer_zip" {
-  bucket = aws_s3_bucket.lambda_layer_bucket.id
-  key    = "geopandas/lambda-deploy.zip"
-  # ホスト側の geolambda/python/lambda-deploy.zip を参照
-  source = "${path.module}/geopandas_layer/geolambda/python/lambda-deploy.zip"
+resource "aws_s3_bucket" "input_bucket" {
+  bucket = "${var.app_name}-shadow-data-input"
 }
 
+## 2. S3ゲートウェイエンドポイント (EC2からS3へのプライベートアクセス)
+resource "aws_vpc_endpoint" "s3_gateway" {
+  # VPC ID
+  vpc_id = aws_vpc.main.id
+
+  # サービス名 (リージョン名はご自身の環境に合わせて修正してください。例: ap-northeast-1)
+  service_name = "com.amazonaws.ap-northeast-1.s3"
+
+  # ゲートウェイエンドポイントタイプ
+  vpc_endpoint_type = "Gateway"
+
+  # ⚠️ 修正点: aws_route_table.private のIDを全て関連付けます
+  # aws_route_table.private は単一リソースとして定義されているため、IDを直接指定
+  route_table_ids = [aws_route_table.private.id] 
+
+  # S3へのアクセスを許可するポリシー
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        # IAMロールでアクセスを制御するため、Principalはワイルドカード(*)で許可
+        Effect    = "Allow"
+        Principal = "*" 
+        Action = [
+          "s3:GetObject",
+          "s3:ListBucket",
+          "s3:PutObject" # EC2のPythonスクリプトによる書き込み操作のため追加
+        ]
+        # アクセスを aws_s3_bucket.input_bucket のみに制限
+        Resource = [
+          aws_s3_bucket.input_bucket.arn,
+          "${aws_s3_bucket.input_bucket.arn}/*"
+        ]
+      },
+    ]
+  })
+
+  tags = {
+    Name = "${var.app_name}-s3-gateway-endpoint"
+  }
+}
