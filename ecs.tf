@@ -45,20 +45,24 @@ resource "aws_ecs_task_definition" "app_task" {
   family                   = "${var.app_name}-app-task"
   requires_compatibilities = ["FARGATE"]
   network_mode             = "awsvpc"
-  cpu                      = "512"
-  memory                   = "1024"
+#  cpu                      = "512"
+#  memory                   = "1024"
+  cpu                      = "2048"
+  memory                   = "4096"
+
   execution_role_arn       = aws_iam_role.ecs_task_execution_role.arn
   task_role_arn            = aws_iam_role.ecs_task_role.arn
   container_definitions    = jsonencode([
     {
       name      = "${var.app_name}-app"
       image     = aws_ecr_repository.app_repo.repository_url
-      cpu       = 512
-      memory    = 1024
+#      cpu       = 512
+#      memory    = 1024
+      cpu       = 2048
+      memory    = 4096
       environment = [
         {
           name  = "SHADOW_DATA_BUCKET_NAME"
-#          value = aws_s3_bucket.shadow_data_bucket.bucket
           value = aws_s3_bucket.input_bucket.bucket
         }
       ]

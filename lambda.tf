@@ -48,36 +48,52 @@ data "archive_file" "lambda_zip" {
   output_path = "lambda_package.zip"
 }
 
-#resource "aws_lambda_function" "shadow_generator" {
-#
-#  function_name    = "ShadowGeneratorFunction"
-#  filename         = data.archive_file.lambda_zip.output_path
-#  source_code_hash = data.archive_file.lambda_zip.output_base64sha256
-#  handler          = "main.main" # main.py の main関数
-#  runtime          = "python3.12"
-##  runtime          = "python3.6"
-#  role             = aws_iam_role.lambda_exec_role.arn
-#  
-#  # 高負荷処理のためメモリとタイムアウトを増加
-#  memory_size = 3072 # 3GB推奨
-#  timeout     = 900  # 15分 (最大値)
-#
-#  # GeoLambda Layer のARNを直接指定
-#  layers = [
-#    aws_lambda_layer_version.custom_geopandas_layer.arn,
-#  ]
-#  # GeoLambdaが要求する環境変数を設定
-#  environment {
-#    variables = {
-#      # S3バケットは東京リージョンのものを渡す (Step Functionsから渡される想定)
-#      OUTPUT_BUCKET = aws_s3_bucket.output_bucket.bucket 
-##      INPUT_BUCKET  = aws_s3_bucket.input_bucket.bucket
-#      
-#      # GeoLambda Layerの必須設定
-#      GDAL_DATA     = "/opt/share/gdal"
-#      PROJ_LIB      = "/opt/share/proj" # GeoLambda 2.0.0+ 向け
-#          }
-##      INPUT_KEY     = "${var.app_name}-input_key_name"
-#
-#  }
-#}
+
+# EC2インスタンスを起動するLambda関数
+resource "aws_lambda_function" "start_ec2_function" {
+  filename      = "lambda/start_ec2.py.zip" # 適切なファイル名に変更してください
+  function_name = "${var.app_name}-start-ec2-function"
+  # 適切なIAM Roleを指定してください（例：EC2のStart/Stop権限を持つロール）
+  role          = aws_iam_role.lambda_exec_role.arn 
+  handler       = "start_ec2.lambda_handler" # 適切なハンドラ名に変更してください
+  runtime       = "python3.9" 
+
+  source_code_hash = filebase64sha256("lambda/start_ec2.py.zip")
+  timeout       = 10
+  
+  environment {
+    variables = {
+      # aws_instance.app_server.*.id はIDのリストになる
+      # join関数でそのリストをカンマ (,) 区切りの文字列に変換する
+      INSTANCE_IDS = join(",", aws_instance.app_server.*.id) 
+    }
+  }
+}
+
+# EC2インスタンスを停止するLambda関数
+resource "aws_lambda_function" "stop_ec2_function" {
+  filename      = "lambda/stop_ec2.py.zip" # 適切なファイル名に変更してください
+  function_name = "${var.app_name}-stop-ec2-function"
+  # 適切なIAM Roleを指定してください（例：EC2のStart/Stop権限を持つロール）
+  role          = aws_iam_role.lambda_exec_role.arn
+  handler       = "stop_ec2.lambda_handler" # 適切なハンドラ名に変更してください
+  runtime       = "python3.9"
+
+  source_code_hash = filebase64sha256("lambda/stop_ec2.py.zip")
+  timeout       = 10
+  
+  environment {
+    variables = {
+      # aws_instance.app_server.*.id はIDのリストになる
+      # join関数でそのリストをカンマ (,) 区切りの文字列に変換する
+      INSTANCE_IDS = join(",", aws_instance.app_server.*.id) 
+    }
+  }
+  # 【★追加】このブロックを追加してLambdaをVPC内に配置
+  vpc_config {
+    # EC2と同じプライベートサブネットを指定
+    subnet_ids         = aws_subnet.private.*.id
+    # 上記で作成したLambda/エンドポイント用のセキュリティグループを指定
+    security_group_ids = [aws_security_group.lambda_endpoint_sg.id] 
+  }
+}

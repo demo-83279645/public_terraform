@@ -59,7 +59,8 @@ resource "aws_vpc_endpoint" "s3_gateway" {
         Action = [
           "s3:GetObject",
           "s3:ListBucket",
-          "s3:PutObject" # EC2のPythonスクリプトによる書き込み操作のため追加
+          "s3:PutObject",
+          "s3:DeleteObject"
         ]
         # アクセスを aws_s3_bucket.input_bucket のみに制限
         Resource = [

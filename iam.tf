@@ -152,54 +152,54 @@ resource "aws_iam_role_policy" "lambda_ecs_policy" {
     ]
   })
 }
-#
+
 ## ----------------------------------------------------------------------
-## 1. Step Functions 実行IAMロールとポリシー
+## 2. EC2操作 & VPC接続用 IAMポリシー
 ## ----------------------------------------------------------------------
-#
-#resource "aws_iam_role" "sfn_exec_role" {
-#  name = "${var.app_name}-sfn-exec-role"
-#
-#  assume_role_policy = jsonencode({
-#    Version = "2012-10-17"
-#    Statement = [
-#      {
-#        Action = "sts:AssumeRole"
-#        Effect = "Allow"
-#        Principal = {
-#          Service = "states.amazonaws.com"
-#        }
-#      }
-#    ]
-#  })
-#}
-##
-#resource "aws_iam_policy" "sfn_policy" {
-#  name        = "${var.app_name}-sfn-policy"
-#  description = "Allows SFN to invoke Lambda and write to CloudWatch Logs"
-#  policy      = jsonencode({
-#    Version = "2012-10-17"
-#    Statement = [
-#      {
-#        Effect   = "Allow"
-#        Action   = "lambda:InvokeFunction"
-#        Resource = aws_lambda_function.shadow_generator.arn # ShadowGeneratorFunctionのARN
-#      },
-#      {
-#        Effect   = "Allow"
-#        Action   = [
-#          "logs:CreateLogGroup",
-#          "logs:CreateLogStream",
-#          "logs:PutLogEvents"
-#        ]
-#        # Step Functions用のロググループに限定
-#        Resource = "arn:aws:logs:*:*:log-group:/aws/step-functions/${var.app_name}-ShadowDataPipeline:*" 
-#      }
-#    ]
-#  })
-#}
-#
-#resource "aws_iam_role_policy_attachment" "sfn_policy_attach" {
-#  role       = aws_iam_role.sfn_exec_role.name
-#  policy_arn = aws_iam_policy.sfn_policy.arn
-#}
+
+# LambdaがEC2を起動/停止し、VPCに接続するためのポリシー
+resource "aws_iam_policy" "lambda_ec2_vpc_policy" {
+  name        = "lambda-ec2-vpc-access-policy"
+  description = "Allows Lambda to start/stop EC2 and manage ENIs for VPC access."
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      # 1. EC2インスタンスの起動/停止権限
+      {
+        Effect   = "Allow",
+        Action   = [
+          "ec2:StartInstances",
+          "ec2:StopInstances"
+        ],
+        Resource = "*" # インスタンスIDを限定することも可能
+      },
+      # 2. LambdaをVPCに配置するために必須のENI管理権限
+      {
+        Effect   = "Allow",
+        Action   = [
+          "ec2:CreateNetworkInterface",
+          "ec2:DeleteNetworkInterface",
+          "ec2:DescribeNetworkInterfaces"
+        ],
+        Resource = "*"
+      },
+      # 3. CloudWatch Logsへの書き込み権限 (既存のログ権限の確認のため再度追加)
+      {
+        Effect   = "Allow",
+        Action   = [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+        ],
+        Resource = "arn:aws:logs:*:*:*"
+      }
+    ]
+  })
+}
+
+# 作成したポリシーを既存のLambda実行ロールにアタッチ
+resource "aws_iam_role_policy_attachment" "ec2_vpc_attach" {
+  role       = aws_iam_role.lambda_exec_role.name
+  policy_arn = aws_iam_policy.lambda_ec2_vpc_policy.arn
+}
